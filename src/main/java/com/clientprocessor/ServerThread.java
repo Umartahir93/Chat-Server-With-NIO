@@ -69,6 +69,12 @@ public class ServerThread extends Thread{
             while (true) {
                 log.info("Trying to read Message from the client");
                 String clientMessage = dataInputStream.readUTF();
+
+                //blocking call //haar client apnyeee dataInputStream peer suun rahaa haai
+                //haar client ke apnee blocking call haai
+
+                //how to deal with this blocking mechanism?
+
                 log.info("Message read from the client");
                 log.info("Trying to send Message to all other clients");
                 groupChat.sendMessageToAllGroupMembers(clientMessage);

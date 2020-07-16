@@ -10,6 +10,9 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Map;
 
 /**
  * This class Contains server core logic
@@ -21,8 +24,9 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class Server {
     private final int port;
-    ServerSocket serverSocket;
-    GroupChat groupChat = new GroupChat();
+    private ServerSocket serverSocket;
+    private Map<String,Socket> clientInformationCache = new HashMap<>();
+
 
     /**
      * This function is entry point of server core
@@ -73,7 +77,12 @@ public class Server {
 
             while (true) {
                 log.info("Calling acceptClientConnectionRequest method");
-                acceptClientConnectionRequest();
+                Socket socket = acceptClientConnectionRequest();
+
+                log.info("Calling maintainInformationOfClientsConnection method");
+                maintainInformationOfClientsConnection(socket);
+                log.info("Calling establishUserToUserConnection method");
+                establishUserToUserConnection();
             }
 
         }finally {
@@ -88,7 +97,12 @@ public class Server {
         }
     }
 
-    /**
+    private void maintainInformationOfClientsConnection(Socket socket) {
+        clientInformationCache
+
+    }
+
+    /** <Update Comment> </Update>
      * This is helper function which accepts client
      * connection request and returns a scoket after
      * acceptance
@@ -102,16 +116,10 @@ public class Server {
      * machine has, you get the connections one at a time because of
      * accept method()
      */
-    private void acceptClientConnectionRequest() throws IOException {
+    private Socket acceptClientConnectionRequest() throws IOException {
         log.info("Execution of acceptClientConnectionRequest method started");
         log.info("Waiting for client request");
-        Socket socket = serverSocket.accept();
-        //BLOCKING CALL HANDSHAKING WITHIN SECONDS SIMULATOR
         log.info("Client connection request accepted and socket opened");
-        log.info("Adding User socket to Group");
-        groupChat.addUserToGroupAndStartCommunicationThread(socket);
-
-        log.info("Execution of acceptClientConnectionRequest method ended");
+        return  serverSocket.accept();
     }
-
 }
