@@ -2,6 +2,7 @@ package com.servercore;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -10,22 +11,35 @@ import java.nio.channels.SocketChannel;
 import java.util.Map;
 import java.util.Queue;
 
+@Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Writer {
-    static void writeMessagesToTheClient(SelectionKey selectionKey, Map<SocketChannel, Queue<ByteBuffer>> pendingData) throws IOException {
+    static void writeMessagesToTheClient(SelectionKey selectionKey, Map<SocketChannel, Queue<ByteBuffer>> pendingData)  {
+        log.info("Execution of Writer thread started");
         SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
-        Queue<ByteBuffer> queue = pendingData.get(socketChannel);
+        log.info("Got the socket channel");
 
+        Queue<ByteBuffer> queue = pendingData.get(socketChannel);
+        log.info("Got the queue for specific socket");
         ByteBuffer buffer;
 
-        while ((buffer = queue.peek())!=null){
-            socketChannel.write(buffer);
-            if(!buffer.hasRemaining()){
-                queue.poll();
-            }else {
-                return;
+        try{
+            while ((buffer = queue.peek())!=null){
+                log.info("Going to write message to the buffer");
+                socketChannel.write(buffer);
+                if(!buffer.hasRemaining()){
+                    log.info("Emptying buffer");
+                    queue.poll();
+                }else {
+                    return;
+                }
             }
+            log.info("Registering Reading event in selector for specific socket channel");
+            socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
+
+        }catch (Exception exception){
+            log.error("Exception occurred");
         }
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
+
     }
 }

@@ -1,5 +1,6 @@
 package com.servercore;
 
+import com.utilities.Constants;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,8 @@ import java.util.concurrent.Executors;
 public class Reader {
 
     static void readMessagesFromClient(SelectionKey selectionKey,Map<SocketChannel, Queue<ByteBuffer>> pendingData) throws IOException {
-        //ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+        ExecutorService messageWritingThreadPool = Executors.newFixedThreadPool(Constants.NUMBER_OF_THREADS_IN_WRITING_POOL);
 
         log.info("Get the socket channel on which read event has occurred");
         SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
@@ -48,10 +50,12 @@ public class Reader {
 
         socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
 
-        //executorService.submit(()->Writer.writeMessagesToTheClient());
+        /**
+         * Needs to improve this multithreading part
+         *
+         */
 
-        // Threading see you later
-
+        messageWritingThreadPool.submit(()->Writer.writeMessagesToTheClient(selectionKey,pendingData));
 
     }
 }

@@ -106,6 +106,7 @@ public class Server {
                 log.info("Accept event has occurred");
                 log.info("Calling acceptClientConnectionRequest to accept client connection");
                 acceptClientConnectionRequest(selectionKey);
+
             }
             else {
                 log.info("Calling process Client Messages");
@@ -134,14 +135,11 @@ public class Server {
 
     private void processClientMessages(SelectionKey selectionKey) throws IOException {
         log.info("Execution of processClientMessages method started");
+
         if (selectionKey.isReadable()) {
             log.info("Read Event has occurred on channel");
             log.info("Calling readClientMessagesFromClient");
             Reader.readMessagesFromClient(selectionKey,pendingData);
-        } else if (selectionKey.isWritable()) {
-            log.info("Write Event has occurred on channel");
-            log.info("Calling writeMessagesToTheClient");
-            Writer.writeMessagesToTheClient(selectionKey,pendingData);
         }
 
         log.info("Execution of processClientMessages method ended");
