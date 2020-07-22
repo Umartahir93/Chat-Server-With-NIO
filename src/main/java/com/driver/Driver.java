@@ -6,7 +6,6 @@ package com.driver;
 
 import com.servercore.Server;
 import com.utilities.InputValidator;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
@@ -34,7 +33,7 @@ public class Driver {
             int port = Integer.parseInt(args[0]);
             Server server = new Server(port);
             log.info("Calling startServer method() at time {}", LocalDate.now().toString());
-            server.startServer();
+            server.startListeningRequests();
 
         }catch (Exception exception){
             log.error("Error occurred in the Driver at {}",LocalDate.now().toString());
