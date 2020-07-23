@@ -2,9 +2,9 @@
     ========= Server Core ==========
  */
 package com.servercore;
+import com.github.javafaker.Faker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -13,6 +13,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +26,7 @@ public class Server {
     private final int port;
     private ServerSocketChannel serverSocketChannel;
     private final Map<SocketChannel, Queue<ByteBuffer>> pendingData = new ConcurrentHashMap<>();
+    private final Map<String,SocketChannel> clientConnectionData = new HashMap<>();
 
 
     public void startListeningRequests() {
@@ -105,10 +107,21 @@ public class Server {
             if (selectionKey.isAcceptable()){
                 log.info("Accept event has occurred");
                 log.info("Calling acceptClientConnectionRequest to accept client connection");
-                acceptClientConnectionRequest(selectionKey);
+                SocketChannel channel = acceptClientConnectionRequest(selectionKey);
+
+
+                /*
+                   Maybe this Needs improvement here maybe
+                 */
+
+                Writer.messageWritingThreadPool.submit(()->{
+                    Writer.sendUsernameToSpecificClient(channel,assigningUserNameToTheClient(channel));
+                    selectionKey.selector().wakeup();
+                });
 
             }
             else {
+                
                 log.info("Calling process Client Messages");
                 processClientMessages(selectionKey);
             }
@@ -117,7 +130,7 @@ public class Server {
         log.info("Execution channelEventsProcessor method ended");
     }
 
-    private void acceptClientConnectionRequest(SelectionKey key) throws IOException {
+    private SocketChannel acceptClientConnectionRequest(SelectionKey key) throws IOException {
 
         log.info("Get the server socket channel on which event has occurred");
         ServerSocketChannel channel = (ServerSocketChannel) key.channel();
@@ -131,6 +144,24 @@ public class Server {
 
         pendingData.put(socketChannel,new ConcurrentLinkedQueue<>());
 
+        return socketChannel;
+
+    }
+
+    private String assigningUserNameToTheClient(SocketChannel channel) {
+        Faker faker = new Faker();
+        String userName = faker.name().username();
+        boolean assumeUserNameNotPresentInMap = true;
+
+        while (assumeUserNameNotPresentInMap){
+
+            if(!clientConnectionData.containsKey(userName)){
+                clientConnectionData.put(userName,channel);
+                assumeUserNameNotPresentInMap = false;
+            } else userName = faker.name().username();
+        }
+
+        return userName;
     }
 
     private void processClientMessages(SelectionKey selectionKey) throws IOException {
@@ -146,3 +177,17 @@ public class Server {
     }
 
 }
+
+/*
+change this:
+    First I need to ask
+    1. Randomly assign user name to client and save it <>
+    2. Send the username to the client <>
+    3. Ask the client to whom he wanted to talk <>
+    4. If he says some username: Create a link
+    5. If that link is present than proceed to talking
+    6. If link is not present send message to client please tell us name
+
+    7. Exit strategy - LATER
+
+ */

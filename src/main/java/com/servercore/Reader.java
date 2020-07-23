@@ -20,8 +20,6 @@ public class Reader {
 
     static void readMessagesFromClient(SelectionKey selectionKey,Map<SocketChannel, Queue<ByteBuffer>> pendingData) throws IOException {
 
-        ExecutorService messageWritingThreadPool = Executors.newFixedThreadPool(Constants.NUMBER_OF_THREADS_IN_WRITING_POOL);
-
         log.info("Get the socket channel on which read event has occurred");
         SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
         log.info("Allocate a buffer for the message");
@@ -51,11 +49,46 @@ public class Reader {
         socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
 
         /**
-         * Needs to improve this multithreading part
+         * I think maybe this Needs to improve this multithreading part
+         *
+         * it should something like producer consumer strategy
+         * where there will be only one queue -ASK hassan bhai
+         *
+         * but I think we are using producer consumer in our project
+         *
+         * haar client kee id hoo geee unique identier, message identifer, server consumer threa
+         * source message destination keyaa haaai
+         *
+         * ---------------------------------------------
+         *
+         * source tou packet is a jayee gaaaa. Message kaa structure aisyee banyee
+         *
+         *
+         * 2 bytes -->  magic bytes
+         * 2 bytes -->  message type (login, logout, data) authentication
+         * 2 bytes -->  source
+         * 2 bytes -->  destination
+         * 2 bytes ---> message length
+         *
+         * username | sasadasdasdsadsadasdasdasdasdd
+         *
+         *-----------------------------------------------
+         * Packet protocol
+         * processing
+         * communication k lyee protocol khud bannaaa paryee gaaa
+         *
+         * --------------------------------------------------
+         *
+         * Us case main message pattern change ordering
+         * in order processing karni haai
+         *
          *
          */
 
-        messageWritingThreadPool.submit(()->Writer.writeMessagesToTheClient(selectionKey,pendingData));
+        Writer.messageWritingThreadPool.submit(()->Writer.writeMessagesToTheClient(selectionKey,pendingData));
+
 
     }
 }
+
+
