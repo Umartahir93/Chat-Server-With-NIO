@@ -90,11 +90,12 @@ public class Server {
             for (SelectionKey selectionKey : selector.selectedKeys()) {
                 log.info("Retrieving key's ready-operation set");
                 selectionKey.readyOps();
-                log.info("Calling channelEventsProcessor method");
-                channelEventsProcessor(selectionKey);
                 log.info("Removing the selection key");
                 selector.selectedKeys().remove(selectionKey);
                 log.info("Selection key removed");
+                log.info("Calling channelEventsProcessor method");
+                channelEventsProcessor(selectionKey);
+
             }
         }
     }
@@ -108,18 +109,8 @@ public class Server {
                 log.info("Accept event has occurred");
                 log.info("Calling acceptClientConnectionRequest to accept client connection");
                 SocketChannel channel = acceptClientConnectionRequest(selectionKey);
-
-
-                /*
-                   Maybe this Needs improvement here maybe
-                 */
-
-                Writer.messageWritingThreadPool.submit(()->{
-                    Writer.sendUsernameToSpecificClient(channel,assigningUserNameToTheClient(channel));
-                    selectionKey.selector().wakeup();
-                });
-
             }
+
             else {
                 
                 log.info("Calling process Client Messages");
