@@ -50,18 +50,4 @@ public class Writer {
 
     }
 
-    static void sendUsernameToSpecificClient(SocketChannel channel, String userName){
-        byte [] message = ("Your username is: "+userName+"\n \n" +
-                "Please specify to whom you wants to talk to: ").getBytes();
-        ByteBuffer buffer = ByteBuffer.wrap(message);
-
-        try {
-            while(buffer.hasRemaining()){
-                channel.write(buffer);
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 }

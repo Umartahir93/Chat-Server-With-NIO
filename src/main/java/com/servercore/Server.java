@@ -2,18 +2,14 @@
     ========= Server Core ==========
  */
 package com.servercore;
-import com.github.javafaker.Faker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,18 +22,18 @@ public class Server {
     private final int port;
     private ServerSocketChannel serverSocketChannel;
     private final Map<SocketChannel, Queue<ByteBuffer>> pendingData = new ConcurrentHashMap<>();
-    private final Map<String,SocketChannel> clientConnectionData = new HashMap<>();
 
 
     public void startListeningRequests() {
         log.info("Execution of startListeningRequests started");
+        Selector selector = null;
 
         try {
 
             log.info("Calling settingUpServerChannelAndSelector method");
-            Selector selector = settingUpServerChannelAndSelector();
-            log.info("Calling channelEventsListenerViaSelector method");
-            channelEventsListenerViaSelector(selector);
+            selector = settingUpServerChannelAndSelector();
+            log.info("Calling eventsListenerOfRegisteredChannels method");
+            eventsListenerOfRegisteredChannels(selector);
 
 
         } catch (Exception exception) {
@@ -45,19 +41,12 @@ public class Server {
             log.error("Exception cause is", exception);
             exception.printStackTrace();
         }finally {
-            if(serverSocketChannel.isOpen()){
-                log.info("Closing Server Socket Channel");
-                try {
-                    serverSocketChannel.close();
-                } catch (IOException e) {
-                    log.error("Error occurred while closing server socket channel");
-                    e.printStackTrace();
-                }
-            }
+            finallyBlockExecutionForGraceFulShutdown(selector);
         }
-        
+
         log.info("Execution of startListeningRequests ended");
     }
+
 
     private Selector settingUpServerChannelAndSelector() throws IOException {
 
@@ -80,8 +69,8 @@ public class Server {
         return selector;
     }
 
-    private void channelEventsListenerViaSelector(Selector selector) throws IOException {
-        log.info("Started channelEventsListenerViaSelector execution method");
+    private void eventsListenerOfRegisteredChannels(Selector selector) throws IOException {
+        log.info("Started eventsListenerOfRegisteredChannels execution method");
         while (serverSocketChannel.isOpen()) {
             log.info("Waiting for event to occur");
             selector.select();
@@ -93,37 +82,26 @@ public class Server {
                 log.info("Removing the selection key");
                 selector.selectedKeys().remove(selectionKey);
                 log.info("Selection key removed");
-                log.info("Calling channelEventsProcessor method");
-                channelEventsProcessor(selectionKey);
-
+                log.info("Call processorOfAcceptOrReadEvent method if selection key is valid");
+                if (selectionKey.isValid()) processorOfAcceptOrReadEvent(selectionKey);
             }
         }
+        log.info("Finished eventsListenerOfRegisteredChannels execution method");
     }
 
-    private void channelEventsProcessor(SelectionKey selectionKey) throws IOException {
-        log.info("Execution channelEventsProcessor method started");
-        if (selectionKey.isValid()) {
-            log.info("Selection key is valid");
+    private void processorOfAcceptOrReadEvent(SelectionKey selectionKey) throws IOException {
+        log.info("Execution processorOfAcceptOrReadEvent method started");
 
-            if (selectionKey.isAcceptable()){
-                log.info("Accept event has occurred");
-                log.info("Calling acceptClientConnectionRequest to accept client connection");
-                SocketChannel channel = acceptClientConnectionRequest(selectionKey);
-            }
+        if (selectionKey.isAcceptable()) acceptClientConnectionRequest(selectionKey);
+        else processClientMessages(selectionKey);
 
-            else {
-                
-                log.info("Calling process Client Messages");
-                processClientMessages(selectionKey);
-            }
-
-        }
         log.info("Execution channelEventsProcessor method ended");
     }
 
-    private SocketChannel acceptClientConnectionRequest(SelectionKey key) throws IOException {
-
+    private void acceptClientConnectionRequest(SelectionKey key) throws IOException {
+        log.info("Execution of acceptClientConnectionRequest method has started");
         log.info("Get the server socket channel on which event has occurred");
+
         ServerSocketChannel channel = (ServerSocketChannel) key.channel();
         SocketChannel socketChannel = channel.accept();
         log.info("Connection got accepted");
@@ -134,51 +112,66 @@ public class Server {
         log.info("Socket Channel got registered on read events");
 
         pendingData.put(socketChannel,new ConcurrentLinkedQueue<>());
-
-        return socketChannel;
-
+        log.info("Execution of acceptClientConnectionRequest method has stopped");
     }
 
-    private String assigningUserNameToTheClient(SocketChannel channel) {
-        Faker faker = new Faker();
-        String userName = faker.name().username();
-        boolean assumeUserNameNotPresentInMap = true;
-
-        while (assumeUserNameNotPresentInMap){
-
-            if(!clientConnectionData.containsKey(userName)){
-                clientConnectionData.put(userName,channel);
-                assumeUserNameNotPresentInMap = false;
-            } else userName = faker.name().username();
-        }
-
-        return userName;
-    }
-
-    private void processClientMessages(SelectionKey selectionKey) throws IOException {
+    private void processClientMessages(SelectionKey selectionKey) {
         log.info("Execution of processClientMessages method started");
-
-        if (selectionKey.isReadable()) {
-            log.info("Read Event has occurred on channel");
-            log.info("Calling readClientMessagesFromClient");
-            Reader.readMessagesFromClient(selectionKey,pendingData);
-        }
+        if (selectionKey.isReadable()) Reader.readMessagesFromClient(selectionKey,pendingData);
 
         log.info("Execution of processClientMessages method ended");
     }
 
+    private void finallyBlockExecutionForGraceFulShutdown(Selector selector) {
+        log.info("Execution of finallyBlockExecutionForGraceFulShutdown started");
+
+        if(serverSocketChannel.isOpen()){
+            log.info("Closing Server Socket Channel");
+            try {
+                serverSocketChannel.close();
+                log.info("serverSocketChannel is closed");
+            } catch (IOException e) {
+                log.error("Error occurred while closing server socket channel");
+                e.printStackTrace();
+            }
+        }
+
+        log.info("Calling selectorShutdown");
+        selectorShutdown(selector);
+    }
+
+    private void selectorShutdown(Selector selector) {
+        log.info("Execution of selectorShutdown started");
+        if(selector != null && selector.isOpen()){
+
+            for (SelectionKey selectionKey : selector.keys()) {
+                log.info("Selecting Channel from key");
+                SelectableChannel channel = selectionKey.channel();
+                if (channel instanceof SocketChannel) {
+                    log.info("channel is instance of SocketChannel");
+                    SocketChannel socketChannel = (SocketChannel) channel;
+
+                    try {
+                        socketChannel.close();
+                        log.info("Socket Channel closed");
+                    } catch (IOException e) {
+                        log.error("Error occurred while closing socket");
+                        e.printStackTrace();
+                    }
+
+                    log.info("Cancelling selection key");
+                    selectionKey.cancel();
+                }
+            }
+
+            log.info("Closing the selector");
+            try {
+                selector.close();
+                log.info("Selector closed");
+            } catch (IOException e) {
+                log.error("Error occurred while closing selector");
+                e.printStackTrace();
+            }
+        }
+    }
 }
-
-/*
-change this:
-    First I need to ask
-    1. Randomly assign user name to client and save it <>
-    2. Send the username to the client <>
-    3. Ask the client to whom he wanted to talk <>
-    4. If he says some username: Create a link
-    5. If that link is present than proceed to talking
-    6. If link is not present send message to client please tell us name
-
-    7. Exit strategy - LATER
-
- */

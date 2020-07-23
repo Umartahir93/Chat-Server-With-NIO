@@ -19,10 +19,13 @@ import java.time.LocalDate;
 public class Driver {
 
     /**
-     * Entry function of chat server. Port will be provided to
-     * chat server from command line arguments.
+     *============ Entry point of chat server================
+     *===== Port will be provided to chat server from =======
+     *=============== command line arguments ================
      *
-     * @param args Command line params which should be port number
+     * @param args Command line params which should be port
+     * number
+     *
      */
 
     public static void main(String[] args) {
@@ -36,7 +39,7 @@ public class Driver {
             server.startListeningRequests();
 
         }catch (Exception exception){
-            log.error("Error occurred in the Driver at {}",LocalDate.now().toString());
+            log.error("Exception occurred in the Driver Class at {}",LocalDate.now().toString());
         }finally {
             log.info("=========Stopping Server at {} ========== ", LocalDate.now().toString());
         }

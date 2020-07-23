@@ -11,11 +11,11 @@ public class InputValidator {
     public static Consumer<String []> commandLineArguments(){
         return args -> {
             if(args.length == 0) {
-                log.info("Proper Usage is: Please provide command line argument");
+                log.info("Please provide command line argument");
                 System.exit(0);
             }
             else if(!StringUtils.isNumeric(args[0])){
-                log.info("Proper Usage is: Please provide port number as command line argument");
+                log.info("Please provide port number as command line argument");
                 System.exit(0);
             }
         };
