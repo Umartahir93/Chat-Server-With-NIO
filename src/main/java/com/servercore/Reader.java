@@ -3,88 +3,97 @@ package com.servercore;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.Map;
-import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
 
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Reader {
+    private static Reader reader;
+    private static final ByteBuffer readByteBuffer = ByteBuffer.allocate(256*256);
 
-    static void readMessagesFromClient(SelectionKey selectionKey,Map<SocketChannel, Queue<ByteBuffer>> pendingData) {
+    public static Reader getReaderInstance(){
+        if(reader == null)
+            reader = new Reader();
+
+        return reader;
+    }
+
+    public void readMessagesFromClient(SelectionKey selectionKey, BlockingQueue<byte []> messageQueue) {
         log.info("Read Event has occurred on channel");
         log.info("Execution of method readMessagesFromClient started");
 
         try{
             log.info("Get the socket channel on which read event has occurred");
             SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
-            log.info("Allocate a buffer for the message");
-            ByteBuffer buffer = ByteBuffer.allocateDirect(2048);
-            int read = socketChannel.read(buffer);
 
-            if(read == -1){
-                log.info("Removing socket from map since number of bytes are -1");
-                socketChannel.close(); //this line is so important without it your server can be halted (SEE IN DETAIL) Later
-                pendingData.remove(socketChannel);
-                return;
+            log.info("Calling checkConnectionWithClient method ()");
+            if (!checkConnectionWithClient(socketChannel)) return;
 
-            }
-
-            buffer.flip();
-            pendingData.get(socketChannel).add(buffer);
+            byte[] messageFromBuffer = readingMessageFromBufferIntoByteArray();
+            messageQueue.put(messageFromBuffer);
             socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
-
-            Writer.messageWritingThreadPool.submit(()->Writer.writeMessagesToTheClient(selectionKey,pendingData));
 
         }catch (Exception exception){
             log.error("Exception occurred ",exception);
             exception.printStackTrace();
         }
 
+    }
 
+    private boolean checkConnectionWithClient(SocketChannel socketChannel) throws IOException {
+        log.info("Execution of checkConnectionWithClient() method started");
+
+        if((socketChannel.read(readByteBuffer)) == -1){
+            log.info("Connection session is not on with client");
+            removeClientInformationFromServer(socketChannel);
+            log.info("Closing channel with client");
+            socketChannel.close();
+            return false;
+        }
+
+        log.info("Connection is ON with client");
+        log.info("Execution of socketChannel() method ended");
+        return true;
+    }
+
+    /**
+     * See this method in detail later
+     *
+     * @param socketChannel
+     */
+    private void removeClientInformationFromServer(SocketChannel socketChannel) {
+        int key= ClientInfoHolder.informationOfConnectedClients.entrySet()
+                 .stream()
+                 .filter(entry->socketChannel.equals(entry.getValue()))
+                 .map(Map.Entry::getKey)
+                 .findFirst().get();
+
+        ClientInfoHolder.informationOfConnectedClients.remove(key);
+        ClientInfoHolder.informationOfMagicNumber.remove(key);
+    }
+
+    private byte[] readingMessageFromBufferIntoByteArray() {
+        log.info("Execution of readingMessageFromBufferIntoByteArray() method started");
+        log.info("Flipping the buffer");
+        readByteBuffer.flip();
+
+        byte[]messageInBytes = new byte[readByteBuffer.limit()];
+        log.info("Reading message from buffer");
+        while (readByteBuffer.hasRemaining()) readByteBuffer.get(messageInBytes);
+
+        log.info("Clearing the buffer");
+        readByteBuffer.clear();
+
+        log.info("Execution of readingMessageFromBuffer() method ended");
+        return messageInBytes;
     }
 }
 
-
-
-/**
- * I think maybe this Needs to improve this multithreading part
- *
- * it should something like producer consumer strategy
- * where there will be only one queue -ASK hassan bhai
- *
- * but I think we are using producer consumer in our project
- *
- * haar client kee id hoo geee unique identier, message identifer, server consumer threa
- * source message destination keyaa haaai
- *
- * ---------------------------------------------
- *
- * source tou packet is a jayee gaaaa. Message kaa structure aisyee banyee
- *
- *
- * 2 bytes -->  magic bytes
- * 2 bytes -->  message type (login, logout, data) authentication
- * 2 bytes -->  source
- * 2 bytes -->  destination
- * 2 bytes ---> message length
- *
- * username | sasadasdasdsadsadasdasdasdasdd
- *
- *-----------------------------------------------
- * Packet protocol
- * processing
- * communication k lyee protocol khud bannaaa paryee gaaa
- *
- * --------------------------------------------------
- *
- * Us case main message pattern change ordering
- * in order processing karni haai
- *
- *
- */
 
 

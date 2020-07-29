@@ -2,18 +2,14 @@
     ========= Server Core ==========
  */
 package com.servercore;
+import com.utilities.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.time.LocalDate;
-import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.*;
 
 
 @Slf4j
@@ -21,7 +17,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class Server {
     private final int port;
     private ServerSocketChannel serverSocketChannel;
-    private final Map<SocketChannel, Queue<ByteBuffer>> pendingData = new ConcurrentHashMap<>();
+    private final BlockingQueue<byte[]> messageQueue = new LinkedBlockingQueue<>();
+    private final ExecutorService threadPoolToGenerateAndSendId = Executors.newFixedThreadPool(Constants.NUMBER_OF_THREADS_IN_THREAD_POOL);
 
 
     public void startListeningRequests() {
@@ -32,6 +29,13 @@ public class Server {
 
             log.info("Calling settingUpServerChannelAndSelector method");
             selector = settingUpServerChannelAndSelector();
+
+            log.info("Starting writer thread");
+            Thread writerThread = new Writer(messageQueue,serverSocketChannel);
+            writerThread.setDaemon(true); // see this later
+            writerThread.start();
+
+
             log.info("Calling eventsListenerOfRegisteredChannels method");
             eventsListenerOfRegisteredChannels(selector);
 
@@ -84,6 +88,8 @@ public class Server {
                 log.info("Selection key removed");
                 log.info("Call processorOfAcceptOrReadEvent method if selection key is valid");
                 if (selectionKey.isValid()) processorOfAcceptOrReadEvent(selectionKey);
+
+
             }
         }
         log.info("Finished eventsListenerOfRegisteredChannels execution method");
@@ -92,8 +98,10 @@ public class Server {
     private void processorOfAcceptOrReadEvent(SelectionKey selectionKey) throws IOException {
         log.info("Execution processorOfAcceptOrReadEvent method started");
 
-        if (selectionKey.isAcceptable()) acceptClientConnectionRequest(selectionKey);
-        else processClientMessages(selectionKey);
+        if (selectionKey.isAcceptable())
+            acceptClientConnectionRequest(selectionKey);
+        else if (selectionKey.isReadable())
+            readAndProcessMessagePacket(selectionKey);
 
         log.info("Execution channelEventsProcessor method ended");
     }
@@ -111,14 +119,19 @@ public class Server {
         socketChannel.register(key.selector(), SelectionKey.OP_READ);
         log.info("Socket Channel got registered on read events");
 
-        pendingData.put(socketChannel,new ConcurrentLinkedQueue<>());
+        ClientInfoHolder clientInformationMaintainer = new ClientInfoHolder();
+
+        threadPoolToGenerateAndSendId.submit(()->{
+            clientInformationMaintainer.sendGeneratedSourceIdToClient(socketChannel);
+            key.selector().wakeup();
+        });
+
         log.info("Execution of acceptClientConnectionRequest method has stopped");
     }
 
-    private void processClientMessages(SelectionKey selectionKey) {
+    private void readAndProcessMessagePacket(SelectionKey selectionKey) {
         log.info("Execution of processClientMessages method started");
-        if (selectionKey.isReadable()) Reader.readMessagesFromClient(selectionKey,pendingData);
-
+        Reader.getReaderInstance().readMessagesFromClient(selectionKey,messageQueue);
         log.info("Execution of processClientMessages method ended");
     }
 
