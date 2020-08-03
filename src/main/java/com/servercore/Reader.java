@@ -3,11 +3,13 @@ package com.servercore;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 
 
@@ -37,7 +39,6 @@ public class Reader {
 
             byte[] messageFromBuffer = readingMessageFromBufferIntoByteArray();
             messageQueue.put(messageFromBuffer);
-            socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
 
         }catch (Exception exception){
             log.error("Exception occurred ",exception);
@@ -68,11 +69,15 @@ public class Reader {
      * @param socketChannel
      */
     private void removeClientInformationFromServer(SocketChannel socketChannel) {
-        int key= ClientInfoHolder.informationOfConnectedClients.entrySet()
-                 .stream()
-                 .filter(entry->socketChannel.equals(entry.getValue()))
-                 .map(Map.Entry::getKey)
-                 .findFirst().get();
+        Optional<Integer> found = Optional.empty();
+        for (Map.Entry<Integer, SocketChannel> entry : ClientInfoHolder.informationOfConnectedClients.entrySet()) {
+            if (socketChannel.equals(entry.getValue())) {
+                Integer integerSocketChannelEntryKey = entry.getKey();
+                found = Optional.of(integerSocketChannelEntryKey);
+                break;
+            }
+        }
+        int key = found.get();
 
         ClientInfoHolder.informationOfConnectedClients.remove(key);
         ClientInfoHolder.informationOfMagicNumber.remove(key);

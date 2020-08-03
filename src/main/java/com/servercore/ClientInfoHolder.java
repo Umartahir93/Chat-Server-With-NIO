@@ -1,67 +1,41 @@
 package com.servercore;
 
 import com.domain.Packet;
-import com.google.common.primitives.Bytes;
+import com.utilities.Adaptor;
 import com.utilities.Constants;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * This class holds client's information who are connected to
+ * server. The information contains Number of clients connected
+ * to server, socket information of connected clients, magic no
+ * which is assigned to client and later it is used to authenticate
+ * the client
+ * <p>
+ * It also include some utility methods related to information of
+ * clients
+ *
+ * @author umar.tahir@afiniti.com
+ */
 
 @Slf4j
 @NoArgsConstructor
 public class ClientInfoHolder {
 
-    private static final AtomicInteger clientCounter = new AtomicInteger();
-    protected static final Map<Integer,SocketChannel> informationOfConnectedClients = new ConcurrentHashMap<>();
-    protected static final Map<Integer,Integer> informationOfMagicNumber = new HashMap<>();
-
-    /**
-     * This method takes the channel which is created after the
-     * acceptance of connection. In this method we generate Id
-     * and pass it to client.
-     *
-     * @param channel client channel
-     */
-    public void sendGeneratedSourceIdToClient(SocketChannel channel){
-         log.info("Execution of sendGeneratedSourceIdToClient method started");
-
-         try{
-             log.info("Execution of sendGeneratedSourceIdToClient method started");
-             log.info("Calling createClientID() and makingPacketWithGeneratedId()");
-             int clientId = createClientID();
-             Packet packet = makingPacketWithGeneratedId(clientId);
-             log.info("Calling convertPacketIntoByteArray() method and sendingMessageToClient");
-             sendingMessageToClient(convertPacketIntoByteArray(packet),channel);
-             log.info("Calling savingInfoOfConnectedClients() method");
-             savingInfoOfConnectedClients(clientId,channel);
-
-         }catch (Exception exception){
-             log.error("Exception occur while sending packet to client");
-             exception.printStackTrace();
-         }
-         log.info("Execution of sendGeneratedSourceIdToClient method ended");
-    }
-
-
-
-    /**
-     * Save the client's information
-     *
-     * @param clientId id of the client
-     * @param channel client's channel
-     */
-    private void savingInfoOfConnectedClients(int clientId,SocketChannel channel) {
-        informationOfConnectedClients.put(clientId,channel);
-    }
-
-
+    protected static final Map<Integer, SocketChannel> informationOfConnectedClients = new ConcurrentHashMap<>();
+    protected static final ExecutorService threadPoolToGenerateAndSendId = Executors.newFixedThreadPool(Constants.NUMBER_OF_THREADS_IN_THREAD_POOL);
+    protected static final Map<Integer, Integer> informationOfMagicNumber = new HashMap<>();
+    private static final AtomicInteger clientCounter = new AtomicInteger(0);
 
     /**
      * This method create client Id which will be used
@@ -69,25 +43,10 @@ public class ClientInfoHolder {
      *
      * @return client id
      */
-    private static int createClientID(){
-        return clientCounter.getAndIncrement();
+
+    private static int createClientID() {
+        return clientCounter.incrementAndGet();
     }
-
-
-
-    /**
-     * In this method we will make a packet with new information
-     *
-     * @param clientID id
-     * @return packet
-     */
-    private Packet makingPacketWithGeneratedId(int clientID) {
-        return Packet.builder().magicBytes(Constants.NO_MAGIC_BYTES_DEFINED).messageSourceId(Constants.SERVER_SOURCE_ID).
-                messageDestinationId(clientID).messageLength(Constants.MESSAGE_FROM_SERVER.length()).
-                message(Constants.MESSAGE_FROM_SERVER).build();
-    }
-
-
 
     /**
      * This function is used to generate magic number and put it in
@@ -95,68 +54,84 @@ public class ClientInfoHolder {
      *
      * @param sourceId represents ID assigned to client
      * @return magic number to send to client
-     * s
      */
-    public static int generateMagicNumberForAuthentication(int sourceId){
-        int magicNumber =  new Random(System.nanoTime()).nextInt(Constants.UPPER_LIMIT_FOR_RANDOM_NUMBER);
-        informationOfMagicNumber.put(sourceId,magicNumber);
+
+    public static int generateMagicNumberForAuthentication(int sourceId) {
+        int magicNumber = new Random(System.nanoTime()).nextInt(Constants.UPPER_LIMIT_FOR_RANDOM_NUMBER);
+        informationOfMagicNumber.put(sourceId, magicNumber);
         return magicNumber;
     }
 
-
-
     /**
-     * This message is used to send message to the client
+     * This method is used to check the magic number we received from client
+     * is correct or not
      *
-     * @param packetInBytes packet to send
-     * @param channel to whom to send to
-     * @throws IOException exception
+     * @param packet client packet
+     * @return true if correct
+     * @apiNote needs improvement here
      */
-    public void sendingMessageToClient(byte [] packetInBytes, SocketChannel channel) throws IOException {
-        log.info("Execution of writingMessageToServer started");
-        log.info("Creating buffer with allocation of private backend space with size {}",packetInBytes.length);
-        ByteBuffer messageToServerBuffer = ByteBuffer.allocate(packetInBytes.length);
 
-        log.info("Putting data in bulk into buffer.");
-        messageToServerBuffer.put(packetInBytes);
-
-        while(messageToServerBuffer.hasRemaining()){
-            log.info("Sending message to the server");
-            channel.write(messageToServerBuffer);
+    public static boolean authenticateClient(Packet packet) {
+        if (ClientInfoHolder.informationOfMagicNumber.get(packet.getMessageSourceId()) == packet.getMagicBytes()) {
+            log.info("Authentication failed. Discarding the whole message");
+            return true;
         }
-
-        log.info("Message sent to server");
-        log.info("Clearing the buffer");
-        messageToServerBuffer.clear();
-        log.info("Execution of sendMessageToServer ended");
+        return false;
     }
-
-
 
     /**
-     * This method takes the packet and convert into byte array which we
-     * will send to client
+     * This returns socket of client to whom we want to send message to
      *
-     * @param packet new packet to sent to client
-     * @return byte []
-     *
+     * @param messageSourceId we get socket channel from source id
+     * @return socket channel
      */
-    public byte [] convertPacketIntoByteArray(Packet packet) {
-        log.info("Execution of convertPacketIntoByteArray method started");
-        List<Byte> byteArrayList = new ArrayList<>();
 
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMagicBytes()).array()));
-        byteArrayList.addAll(Bytes.asList(packet.getMessageType().getMessageCode()));
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageSourceId()).array()));
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageDestinationId()).array()));
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageLength()).array()));
-        byteArrayList.addAll(Bytes.asList(packet.getMessage().getBytes()));
+    public static SocketChannel getSocketChannel(int messageSourceId) {
+        log.info("Execution of getSocketChannelFromSourceId started");
 
-        log.info("returning bytes array");
-        log.info("Execution of convertMessagePacketIntoTheByteArray method ended");
-
-        return Bytes.toArray(byteArrayList);
-
+        return ClientInfoHolder.informationOfConnectedClients.get(messageSourceId);
     }
 
+    /**
+     * This method takes the channel which is created after the
+     * acceptance of connection. In this method we generate Id
+     * and pass it to client.
+     *
+     * @param channel client channel
+     *
+     */
+
+    public void sendGeneratedSourceIdToClient(SocketChannel channel) {
+        log.info("Execution of sendGeneratedSourceIdToClient method started");
+        int clientId = createClientID();
+
+        log.info("Client Id created: " + clientId);
+
+        try {
+            log.info("Calling createClientID() and makingPacketWithGeneratedId()");
+            Packet packet = Adaptor.makingPacketWithGeneratedId(clientId);
+
+            log.info("Calling getBytesArrayFromPacket() method and sendingMessageToClient");
+            Writer.sendingMessageToClient(Adaptor.getBytesArrayFromPacket(packet), channel);
+
+            log.info("Calling savingInfoOfConnectedClients() method");
+            savingInfoOfConnectedClients(clientId, channel);
+
+        } catch (Exception exception) {
+            log.error("Exception occur while sending packet to client");
+            exception.printStackTrace();
+        }
+        log.info("Execution of sendGeneratedSourceIdToClient method ended");
+    }
+
+    /**
+     * Save the client's information
+     *
+     * @param clientId id of the client
+     * @param channel  client's channel
+     */
+
+    private void savingInfoOfConnectedClients(int clientId, SocketChannel channel) {
+        informationOfConnectedClients.put(clientId, channel);
+    }
 }

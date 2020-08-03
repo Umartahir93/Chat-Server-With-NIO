@@ -4,7 +4,7 @@
  */
 package com.driver;
 
-import com.servercore.Server;
+import com.servercore.InternalCore;
 import com.utilities.InputValidator;
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,9 +34,9 @@ public class Driver {
             InputValidator.commandLineArguments().accept(args);
             log.info("=========Starting Server at {} ==========", LocalDate.now().toString());
             int port = Integer.parseInt(args[0]);
-            Server server = new Server(port);
+            InternalCore internalCore = new InternalCore(port);
             log.info("Calling startServer method() at time {}", LocalDate.now().toString());
-            server.startListeningRequests();
+            internalCore.startListeningRequests();
 
         }catch (Exception exception){
             log.error("Exception occurred in the Driver Class at {}",LocalDate.now().toString());
