@@ -22,24 +22,6 @@ public class UtilityFunction {
 
 
     /**
-     * Helper function which converts bytes into String
-     *
-     * @param message in byte array
-     *
-     * @param start start index in byte array for specific bytes
-     *
-     * @param end end index in byte array for specific bytes.
-     *            Remember this exclusive
-     *
-     * @return String
-     *
-     */
-
-    public static String getStringFromByteArray(byte[] message, int start ,int end){
-        return new String(Arrays.copyOfRange(message ,start , end));
-    }
-
-    /**
      * Helper function which converts bytes into integer
      *
      * @param message in byte array
@@ -53,8 +35,8 @@ public class UtilityFunction {
      *
      */
 
-    public static int getIntFromByteArray(byte[] message,int start ,int end){
-        return ByteBuffer.wrap(Arrays.copyOfRange(message ,start , end)).getInt();
+    public static int getIntFromByteArray(byte[] message){
+        return ByteBuffer.wrap(message).getInt();
     }
 
 

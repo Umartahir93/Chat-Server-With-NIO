@@ -32,10 +32,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 @NoArgsConstructor
 public class ClientInfoHolder {
 
-    protected static final Map<Integer, SocketChannel> informationOfConnectedClients = new ConcurrentHashMap<>();
+    protected static final Map<Integer, SocketChannel> informationOfConnectedClients = new ConcurrentHashMap<>(); //read docuements perfromance hashMap
     protected static final ExecutorService threadPoolToGenerateAndSendId = Executors.newFixedThreadPool(Constants.NUMBER_OF_THREADS_IN_THREAD_POOL);
     protected static final Map<Integer, Integer> informationOfMagicNumber = new HashMap<>();
     private static final AtomicInteger clientCounter = new AtomicInteger(0);
+    private Writer writer = new Writer();
 
     /**
      * This method create client Id which will be used
@@ -112,7 +113,7 @@ public class ClientInfoHolder {
             Packet packet = Adaptor.makingPacketWithGeneratedId(clientId);
 
             log.info("Calling getBytesArrayFromPacket() method and sendingMessageToClient");
-            Writer.sendingMessageToClient(Adaptor.getBytesArrayFromPacket(packet), channel);
+            writer.sendingMessageToClient(Adaptor.getBytesArrayFromPacket(packet), channel);
 
             log.info("Calling savingInfoOfConnectedClients() method");
             savingInfoOfConnectedClients(clientId, channel);

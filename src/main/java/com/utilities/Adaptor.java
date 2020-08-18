@@ -38,7 +38,7 @@ public class Adaptor {
         return Packet.builder().magicBytes(Constants.NO_MAGIC_BYTES_DEFINED).messageType(MessageType.GENERATED_ID).
                 messageSourceId(Constants.SERVER_SOURCE_ID).messageDestinationId(clientID).
                 messageLength(Constants.MESSAGE_FROM_SERVER.length()).
-                message(Constants.MESSAGE_FROM_SERVER).build();
+                message(Constants.MESSAGE_FROM_SERVER).build(); //verify
     }
 
     /**
@@ -76,46 +76,7 @@ public class Adaptor {
         return Bytes.toArray(byteArrayList);
     }
 
-    /**
-     *
-     * Method that converts byte array into packet class object
-     *
-     * The bytes array follow all the standards set up by use.
-     *
-     *  *  first,  4 bytes for magic number
-     *  *  second, 2 bytes for message types
-     *  *  third,  4 bytes for source id
-     *  *  fourth, 4 bytes for destination id
-     *  *  fifth,  4 bytes for message length
-     *  *  six,    x number of bytes for message
-     *
-     * @param message this is message in byte [] which needs to
-     *                be converted
-     *
-     * @return packet object
-     *
-     */
-
-    public static Packet getPacketFromBytesArray(byte[] message){
-        log.info("Execution of convertByteArrayIntoPacket method started");
-
-        int magicBytes          = UtilityFunction.getIntFromByteArray(message,Constants.START_OF_MAGIC_BYTES_INCLUSIVE, Constants.END_OF_MAGIC_BYTES_EXCLUSIVE);
-
-        String messageTypeValue = UtilityFunction.getStringFromByteArray(message,Constants.START_OF_MESSAGE_TYPE_INCLUSIVE,Constants.END_OF_MESSAGE_TYPE_EXCLUSIVE);
-        MessageType messageType = MessageType.fromTextGetMessageType(messageTypeValue).get();
-
-        int sourceId            = UtilityFunction.getIntFromByteArray(message,Constants.START_OF_SOURCE_ID_INCLUSIVE,Constants.END_OF_SOURCE_ID_EXCLUSIVE);
-        int destId              = UtilityFunction.getIntFromByteArray(message,Constants.START_OF_DEST_ID_INCLUSIVE,Constants.END_OF_DEST_ID_EXCLUSIVE);
-
-        int messageLength       = UtilityFunction.getIntFromByteArray(message,Constants.START_OF_MESSAGE_LENGTH_INCLUSIVE,Constants.END_OF_MESSAGE_LENGTH_EXCLUSIVE);
-        String messageOfClient  = UtilityFunction.getStringFromByteArray(message,Constants.START_OF_MESSAGE_INCLUSIVE,message.length);
-
-        log.info("Execution of convertByteArrayIntoPacket method ended");
-
-        return Packet.builder().magicBytes(magicBytes).messageType(messageType).messageSourceId(sourceId).messageDestinationId(destId)
-                .messageLength(messageLength).message(messageOfClient).build();
-    }
-
+    
     /**
      *
      * This method is used to build Packet with login details

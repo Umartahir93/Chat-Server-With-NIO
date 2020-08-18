@@ -1,5 +1,6 @@
 package com.servercore;
 
+import com.google.common.primitives.Bytes;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,16 +9,22 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
+
+import static java.lang.System.exit;
 
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Reader {
     private static Reader reader;
-    private static final ByteBuffer readByteBuffer = ByteBuffer.allocate(256*256);
+
+    //ask about this
+    private final ByteBuffer readByteBuffer = ByteBuffer.allocate(256*256);
+
 
     public static Reader getReaderInstance(){
         if(reader == null)
@@ -85,15 +92,37 @@ public class Reader {
 
     private byte[] readingMessageFromBufferIntoByteArray() {
         log.info("Execution of readingMessageFromBufferIntoByteArray() method started");
-        log.info("Flipping the buffer");
+
+        log.info("Flipping into read mode");
         readByteBuffer.flip();
 
-        byte[]messageInBytes = new byte[readByteBuffer.limit()];
+        /*
+        Note below test was successful
+        and it can only be carried out wit help of
+        simulator
+         */
+
+        //ADDED THIS FOR more than one message reading TESTING THROUGH SIMULATOR START
+        byte[] messageInBytes = new byte[readByteBuffer.limit()];
+        if (messageInBytes.length == 65536){
+            //exit(0);
+            System.out.println("Buffer is full");
+        }else
+            System.out.println("Buffer not full");
+        //ADDED THIS FOR more than one message reading  TESTING THROUGH SIMULATOR END
+
+
+
+
+        
         log.info("Reading message from buffer");
-        while (readByteBuffer.hasRemaining()) readByteBuffer.get(messageInBytes);
+
+        while (readByteBuffer.hasRemaining())
+            readByteBuffer.get(messageInBytes);
 
         log.info("Clearing the buffer");
         readByteBuffer.clear();
+
 
         log.info("Execution of readingMessageFromBuffer() method ended");
         return messageInBytes;

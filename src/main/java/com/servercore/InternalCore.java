@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.*;
 import java.time.LocalDate;
+import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -122,17 +123,25 @@ public class InternalCore {
             selector.select();
             log.info("The event has occurred");
 
-            for (SelectionKey selectionKey : selector.selectedKeys()) {
-                log.info("Retrieving key's ready-operation set");
-                selectionKey.readyOps();
-                log.info("Removing the selection key");
-                selector.selectedKeys().remove(selectionKey);
-                log.info("Selection key removed");
-                log.info("Call processorOfAcceptOrReadEvent method if selection key is valid");
-                if (selectionKey.isValid())
-                    processorOfAcceptOrReadEvent(selectionKey);
 
-            }
+            System.out.println("Thread ="+Thread.currentThread().getName());
+
+
+            Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+
+            while (iterator.hasNext()) {
+            log.info("Retrieving key's ready-operation set");
+            SelectionKey selectionKey = iterator.next();
+            log.info("Removing the selection key");
+            iterator.remove();
+            log.info("Selection key removed");
+
+            log.info("Call processorOfAcceptOrReadEvent method if selection key is valid");
+            if (selectionKey.isValid())
+                processorOfAcceptOrReadEvent(selectionKey);
+
+    }
+
         }
         log.info("Finished eventsListenerOfRegisteredChannels execution method");
     }

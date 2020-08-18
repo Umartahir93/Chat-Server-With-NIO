@@ -2,7 +2,11 @@ package com.servercore;
 
 import com.domain.MessageType;
 import com.domain.Packet;
+import com.google.common.primitives.Bytes;
 import com.utilities.Adaptor;
+import com.utilities.UtilityFunction;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -10,6 +14,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -22,42 +27,13 @@ import java.util.concurrent.BlockingQueue;
  */
 
 @Slf4j
-@RequiredArgsConstructor
+@AllArgsConstructor
+@NoArgsConstructor
 public class Writer extends Thread {
-    private final BlockingQueue<byte[]> messageQueue;
-    private final ServerSocketChannel serverSocketChannel;
+    private BlockingQueue<byte[]> messageQueue;
+    private ServerSocketChannel serverSocketChannel;
+    private final Pipeline pipeline = new Pipeline();
 
-    /**
-     * This message is used to send message to the client
-     *
-     * @param packetInBytes packet to send
-     * @param channel       to whom to send to
-     * @throws IOException exception
-     * @apiNote partial write wont be a problem here **
-     */
-
-    public static int sendingMessageToClient(byte[] packetInBytes, SocketChannel channel) throws IOException {
-        log.info("Execution of sendingMessageToClient started");
-        log.info("Creating buffer with allocation of private backend space with size {}", packetInBytes.length);
-
-        ByteBuffer messageToServerBuffer = ByteBuffer.allocate(packetInBytes.length);
-        log.info("Putting data in bulk into buffer.");
-        messageToServerBuffer.put(packetInBytes);
-
-        log.info("Flipping the buffer because internally write uses buffer pos index");
-        messageToServerBuffer.flip();
-
-        int bytesWritten = channel.write(messageToServerBuffer);
-
-        log.info("This amount of bytes are sent to client " + bytesWritten);
-        log.info("Message sent to the client");
-        log.info("Clearing the buffer");
-
-        messageToServerBuffer.clear();
-        log.info("Execution of sendMessageToServer ended");
-
-        return bytesWritten;
-    }
 
     /**
      * This method gets called when we start the writer thread
@@ -78,17 +54,16 @@ public class Writer extends Thread {
                 byte[] byteArrayTakenFromQueue = messageQueue.take();
                 log.info("Took byte array from message queue");
 
-                /*
-                 * Partial Read/write problem maybe
-                 * Deal that here
-                 */
-
                 log.info("Converting byte[] into packet object");
-                Packet packet = Adaptor.getPacketFromBytesArray(byteArrayTakenFromQueue);
 
-                log.info("Calling takePacketAndPerformAction method");
-                takePacketAndPerformAction(packet);
-                log.info("Message has been processed");
+                List<Packet> packets = getAllThePacketsFromByteArray(byteArrayTakenFromQueue);
+
+                for (Packet packet:packets){
+                    log.info("Calling takePacketAndPerformAction method");
+                    takePacketAndPerformAction(packet);
+                    log.info("Message has been processed");
+                }
+
 
             } catch (InterruptedException | IOException e) { //made changes here
                 e.printStackTrace();
@@ -98,6 +73,29 @@ public class Writer extends Thread {
 
 
     }
+
+
+    List<Packet> getAllThePacketsFromByteArray(byte [] messages){
+        log.info("Calling getAllThePacketsFromByteArray method");
+        ArrayList<Packet> packets = new ArrayList<>();
+
+        pipeline.getMessageByteQueue().addAll(Bytes.asList(messages));
+        pipeline.startPipeline();
+
+        while (pipeline.isContinuePipeLineProcess()){
+
+            int stage = pipeline.getPipelineSteps().get(pipeline.getCurrentStage()).getAsInt();
+            log.info("Next stage of pipeline to be executed "+stage);
+
+            if (pipeline.isPacketIsReady())
+                packets.add(pipeline.getPacket());
+
+        }
+
+        return packets;
+    }
+
+
 
     /**
      * This method take packet and analyze the packed to identify
@@ -128,6 +126,8 @@ public class Writer extends Thread {
             log.info("Message type is logout. Calling its course of action");
             performLogoutActivity(packet);
         }
+
+
 
         log.info("Execution of takePacketAndPerformAction method ended");
     }
@@ -219,12 +219,20 @@ public class Writer extends Thread {
         log.info("Generating Magic Bytes for client and than will build a new packet object to send");
         Packet loggedInPacket = Adaptor.getLoggedInPacket(packet, ClientInfoHolder.generateMagicNumberForAuthentication(sourceId));
 
+        SocketChannel socketChannel = ClientInfoHolder.getSocketChannel(packet.getMessageSourceId());
+
+        if(socketChannel == null){
+            log.info("No socket channel with this id can be found");
+            log.info("Discarding message request");
+            return;
+        }
+
         log.info("Calling sendingMessageToClient on the input which is byte [] and socket channel ");
-        int bytesSentToClient = sendingMessageToClient(Adaptor.getBytesArrayFromPacket(loggedInPacket), ClientInfoHolder.getSocketChannel(packet.getMessageSourceId()));
+        int bytesSentToClient = sendingMessageToClient(Adaptor.getBytesArrayFromPacket(loggedInPacket),socketChannel);
         log.info("Number of bytes sent to client are " + bytesSentToClient);
 
-        log.info("Execution of perform login activity ended ");
 
+        log.info("Execution of perform login activity ended ");
     }
 
 
@@ -252,6 +260,37 @@ public class Writer extends Thread {
         sendingMessageToClient(Adaptor.getBytesArrayFromPacket(latestPacket), ClientInfoHolder.getSocketChannel(latestPacket.getMessageDestinationId()));
 
         log.info("Execution of performLogoutActivity method ended");
+
+    }
+
+    /**
+     * This message is used to send message to the client
+     *
+     * @param packetInBytes packet to send
+     * @param channel       to whom to send to
+     * @throws IOException exception
+     * @apiNote partial write wont be a problem here **
+     */
+
+    public int sendingMessageToClient(byte[] packetInBytes, SocketChannel channel) throws IOException {
+        log.info("Execution of sendingMessageToClient started");
+        log.info("Creating buffer with allocation of private backend space with size {}", packetInBytes.length);
+        ByteBuffer messageToServerBuffer = ByteBuffer.allocate(packetInBytes.length); //improvement
+        log.info("Putting data in bulk into buffer.");
+        messageToServerBuffer.put(packetInBytes);
+
+        log.info("Flipping the buffer because internally write uses buffer pos index");
+        messageToServerBuffer.flip();
+
+        int bytesWritten = channel.write(messageToServerBuffer);
+
+        log.info("This amount of bytes are sent to client " + bytesWritten);
+        log.info("Message sent to the client");
+        log.info("Clearing the buffer");
+
+        messageToServerBuffer.clear();
+        log.info("Execution of sendMessageToServer ended");
+        return bytesWritten;
 
     }
 }

@@ -2,6 +2,7 @@ package com.domain;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 
@@ -15,6 +16,7 @@ import lombok.Setter;
  *
  * @author umar.tahir@afiniti.com
  */
+
 @Getter
 @Setter
 @Builder
