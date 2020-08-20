@@ -14,6 +14,8 @@ import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import static java.lang.System.exit;
+
 /**
  * This class holds internal core  implementation of server.
  * Here we are accepting connections reading read events and
@@ -123,10 +125,6 @@ public class InternalCore {
             selector.select();
             log.info("The event has occurred");
 
-
-            System.out.println("Thread ="+Thread.currentThread().getName());
-
-
             Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
 
             while (iterator.hasNext()) {
@@ -140,10 +138,11 @@ public class InternalCore {
             if (selectionKey.isValid())
                 processorOfAcceptOrReadEvent(selectionKey);
 
-    }
+            }
 
         }
         log.info("Finished eventsListenerOfRegisteredChannels execution method");
+        exit(0);
     }
 
     /**

@@ -1,29 +1,27 @@
 package com.servercore;
-
 import com.google.common.primitives.Bytes;
+import com.utilities.Adaptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 
-import static java.lang.System.exit;
+
 
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Reader {
     private static Reader reader;
-
-    //ask about this
     private final ByteBuffer readByteBuffer = ByteBuffer.allocate(256*256);
+    private final ArrayList<Byte> messageInBytes = new ArrayList<>();
 
 
     public static Reader getReaderInstance(){
@@ -44,8 +42,8 @@ public class Reader {
             log.info("Calling checkConnectionWithClient method ()");
             if (!checkConnectionWithClient(socketChannel)) return;
 
-            byte[] messageFromBuffer = readingMessageFromBufferIntoByteArray();
-            messageQueue.put(messageFromBuffer);
+            messageQueue.put(readingMessageFromBufferIntoByteArray());
+            clearingMessageBufferAndMessageList();
 
         }catch (Exception exception){
             log.error("Exception occurred ",exception);
@@ -90,42 +88,35 @@ public class Reader {
         ClientInfoHolder.informationOfMagicNumber.remove(key);
     }
 
-    private byte[] readingMessageFromBufferIntoByteArray() {
-        log.info("Execution of readingMessageFromBufferIntoByteArray() method started");
+    private byte[] readingMessageFromBufferIntoByteArray() { //every time new allocation on heap
+        Adaptor.lock.lock();
+        try{
+            log.info("Execution of readingMessageFromBufferIntoByteArray() method started");
 
-        log.info("Flipping into read mode");
-        readByteBuffer.flip();
+            log.info("Flipping into read mode");
+            readByteBuffer.flip();
 
-        /*
-        Note below test was successful
-        and it can only be carried out wit help of
-        simulator
-         */
+            log.info("Reading message from buffer");
+            while (readByteBuffer.hasRemaining())
+                messageInBytes.add(readByteBuffer.get());
 
-        //ADDED THIS FOR more than one message reading TESTING THROUGH SIMULATOR START
-        byte[] messageInBytes = new byte[readByteBuffer.limit()];
-        if (messageInBytes.length == 65536){
-            //exit(0);
-            System.out.println("Buffer is full");
-        }else
-            System.out.println("Buffer not full");
-        //ADDED THIS FOR more than one message reading  TESTING THROUGH SIMULATOR END
+            log.info("Execution of readingMessageFromBuffer() method ended");
+            return Bytes.toArray(messageInBytes);
+        }finally {
+            Adaptor.lock.unlock();
+        }
 
+    }
 
-
-
-        
-        log.info("Reading message from buffer");
-
-        while (readByteBuffer.hasRemaining())
-            readByteBuffer.get(messageInBytes);
+    private void clearingMessageBufferAndMessageList() {
+        log.info("Execution of clearingMessageBufferAndMessageList() method started");
 
         log.info("Clearing the buffer");
         readByteBuffer.clear();
+        log.info("Clearing the arraylist");
+        messageInBytes.clear();
 
-
-        log.info("Execution of readingMessageFromBuffer() method ended");
-        return messageInBytes;
+        log.info("Execution of clearingMessageBufferAndMessageList() method ended");
     }
 }
 

@@ -4,10 +4,8 @@ import com.domain.MessageType;
 import com.domain.Packet;
 import com.google.common.primitives.Bytes;
 import com.utilities.Adaptor;
-import com.utilities.UtilityFunction;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -33,6 +31,7 @@ public class Writer extends Thread {
     private BlockingQueue<byte[]> messageQueue;
     private ServerSocketChannel serverSocketChannel;
     private final Pipeline pipeline = new Pipeline();
+    private final Adaptor adaptor = new Adaptor();
 
 
     /**
@@ -45,27 +44,29 @@ public class Writer extends Thread {
 
     @Override
     public void run() {
-        log.info("Execution of writer thread started");
+        log.error("Execution of writer thread started");
 
         while (serverSocketChannel.isOpen()){
-            log.info("Keep taking byte [] from queue till server socket is accepting connections");
+            log.error("Keep taking byte [] from queue till server socket is accepting connections");
 
             try {
-                byte[] byteArrayTakenFromQueue = messageQueue.take();
-                log.info("Took byte array from message queue");
 
-                log.info("Converting byte[] into packet object");
+                log.error("Took byte array from message queue");
+                log.error("Converting byte[] into packet object");
+                List<Packet> packets = getAllThePacketsFromByteArray(messageQueue.take());
 
-                List<Packet> packets = getAllThePacketsFromByteArray(byteArrayTakenFromQueue);
 
                 for (Packet packet:packets){
-                    log.info("Calling takePacketAndPerformAction method");
+                    log.error("Calling takePacketAndPerformAction method");
                     takePacketAndPerformAction(packet);
-                    log.info("Message has been processed");
+                    log.error("Message has been processed");
                 }
 
 
+
+
             } catch (InterruptedException | IOException e) { //made changes here
+                log.error("Closing Writer thread");
                 e.printStackTrace();
             }
 
@@ -76,23 +77,30 @@ public class Writer extends Thread {
 
 
     List<Packet> getAllThePacketsFromByteArray(byte [] messages){
-        log.info("Calling getAllThePacketsFromByteArray method");
-        ArrayList<Packet> packets = new ArrayList<>();
+        Adaptor.lock.lock();
+        try{
+            log.error("Calling getAllThePacketsFromByteArray method");
+            ArrayList<Packet> packets = new ArrayList<>();
 
-        pipeline.getMessageByteQueue().addAll(Bytes.asList(messages));
-        pipeline.startPipeline();
+            pipeline.getMessageByteQueue().addAll(Bytes.asList(messages));
+            pipeline.startPipeline();
 
-        while (pipeline.isContinuePipeLineProcess()){
+            while (pipeline.isContinuePipeLineProcess()){
 
-            int stage = pipeline.getPipelineSteps().get(pipeline.getCurrentStage()).getAsInt();
-            log.info("Next stage of pipeline to be executed "+stage);
+                int stage = pipeline.getPipelineSteps().get(pipeline.getCurrentStage()).getAsInt();
+                log.error("Next stage of pipeline to be executed "+stage);
 
-            if (pipeline.isPacketIsReady())
-                packets.add(pipeline.getPacket());
+                if (pipeline.isPacketIsReady())
+                    packets.add(pipeline.getPacket());
 
+            }
+
+            return packets;
+
+        }finally {
+            Adaptor.lock.unlock();
         }
 
-        return packets;
     }
 
 
@@ -113,23 +121,23 @@ public class Writer extends Thread {
      */
 
     private void takePacketAndPerformAction(Packet packet) throws IOException {
-        log.info("Execution of takePacketAndPerformAction method started");
+        log.error("Execution of takePacketAndPerformAction method started");
 
         if (packet.getMessageType().equals(MessageType.DATA)) {
-            log.info("Message type is Data. Call its course of action to send message to " +
+            log.error("Message type is Data. Call its course of action to send message to " +
                     "desired client");
             performForwardMessageToTheClientActivity(packet);
         } else if (packet.getMessageType().equals(MessageType.LOGIN)) {
-            log.info("Message type is login. Calling its course of action");
+            log.error("Message type is login. Calling its course of action");
             performLoginActivity(packet);
         } else if (packet.getMessageType().equals(MessageType.LOGOUT)) {
-            log.info("Message type is logout. Calling its course of action");
+            log.error("Message type is logout. Calling its course of action");
             performLogoutActivity(packet);
         }
 
 
 
-        log.info("Execution of takePacketAndPerformAction method ended");
+        log.error("Execution of takePacketAndPerformAction method ended");
     }
 
     /**
@@ -141,20 +149,20 @@ public class Writer extends Thread {
      */
 
     private void performForwardMessageToTheClientActivity(Packet packet) throws IOException {
-        log.info("Execution of forwardMessageToTheDestination started");
+        log.error("Execution of forwardMessageToTheDestination started");
 
         if (!ClientInfoHolder.authenticateClient(packet)) return;
-        log.info("Client Authenticated");
+        log.error("Client Authenticated");
 
-        log.info("Getting socket channel using destination id");
+        log.error("Getting socket channel using destination id");
         SocketChannel socketChannel = ClientInfoHolder.getSocketChannel(packet.getMessageDestinationId());
 
         if (socketChannel != null) {
-            log.info("Socket channel is present");
+            log.error("Socket channel is present");
             forwardMessage(packet, socketChannel);
 
         } else {
-            log.info("Calling sendErrorMessage method");
+            log.error("Calling sendErrorMessage method");
             sendErrorMessage(packet);
         }
 
@@ -169,16 +177,16 @@ public class Writer extends Thread {
      */
 
     private void forwardMessage(Packet packet, SocketChannel socketChannel) throws IOException {
-        log.info("Execution of forwardMessage started");
+        log.error("Execution of forwardMessage started");
 
-        log.info("Convert packet into bytes");
-        byte[] packetInBytes = Adaptor.getBytesArrayFromPacket(packet);
+        log.error("Convert packet into bytes");
+        byte[] packetInBytes = adaptor.getBytesArrayFromPacket(packet);
 
-        log.info("Calling sendingMessageToClient method");
+        log.error("Calling sendingMessageToClient method");
         int bytesSent = sendingMessageToClient(packetInBytes, socketChannel);
-        log.info("Number of bytes forwarded " + bytesSent);
+        log.error("Number of bytes forwarded " + bytesSent);
 
-        log.info("Execution of forwardMessage ended");
+        log.error("Execution of forwardMessage ended");
     }
 
     /**
@@ -189,17 +197,17 @@ public class Writer extends Thread {
      */
 
     private void sendErrorMessage(Packet packet) throws IOException {
-        log.info("Execution of sendErrorMessage method started");
+        log.error("Execution of sendErrorMessage method started");
 
-        Packet packetInCaseNoSocketPresent = Adaptor.getPacketWhenNoSocketPresent(packet);
+        Packet packetInCaseNoSocketPresent = adaptor.getPacketWhenNoSocketPresent(packet);
 
-        log.info("Convert new packet into bytes");
-        byte[] packetInBytes = Adaptor.getBytesArrayFromPacket(packetInCaseNoSocketPresent);
+        log.error("Convert new packet into bytes");
+        byte[] packetInBytes = adaptor.getBytesArrayFromPacket(packetInCaseNoSocketPresent);
 
-        log.info("Send message to the sender about status of message");
+        log.error("Send message to the sender about status of message");
         int bytesSent = sendingMessageToClient(packetInBytes, ClientInfoHolder.getSocketChannel(packetInCaseNoSocketPresent.getMessageDestinationId()));
 
-        log.info("Number of bytes sent back to client " + bytesSent);
+        log.error("Number of bytes sent back to client " + bytesSent);
     }
 
     /**
@@ -213,26 +221,26 @@ public class Writer extends Thread {
      */
 
     private void performLoginActivity(Packet packet) throws IOException {
-        log.info("Execution of performLoginActivity method started");
+        log.error("Execution of performLoginActivity method started");
 
         int sourceId = packet.getMessageSourceId();
-        log.info("Generating Magic Bytes for client and than will build a new packet object to send");
-        Packet loggedInPacket = Adaptor.getLoggedInPacket(packet, ClientInfoHolder.generateMagicNumberForAuthentication(sourceId));
+        log.error("Generating Magic Bytes for client and than will build a new packet object to send");
+        Packet loggedInPacket = adaptor.getLoggedInPacket(packet, ClientInfoHolder.generateMagicNumberForAuthentication(sourceId));
 
         SocketChannel socketChannel = ClientInfoHolder.getSocketChannel(packet.getMessageSourceId());
 
         if(socketChannel == null){
-            log.info("No socket channel with this id can be found");
-            log.info("Discarding message request");
+            log.error("No socket channel with this id can be found");
+            log.error("Discarding message request");
             return;
         }
 
-        log.info("Calling sendingMessageToClient on the input which is byte [] and socket channel ");
-        int bytesSentToClient = sendingMessageToClient(Adaptor.getBytesArrayFromPacket(loggedInPacket),socketChannel);
-        log.info("Number of bytes sent to client are " + bytesSentToClient);
+        log.error("Calling sendingMessageToClient on the input which is byte [] and socket channel ");
+        int bytesSentToClient = sendingMessageToClient(adaptor.getBytesArrayFromPacket(loggedInPacket),socketChannel);
+        log.error("Number of bytes sent to client are " + bytesSentToClient);
 
 
-        log.info("Execution of perform login activity ended ");
+        log.error("Execution of perform login activity ended ");
     }
 
 
@@ -245,21 +253,21 @@ public class Writer extends Thread {
      */
 
     private void performLogoutActivity(Packet packet) throws IOException {
-        log.info("Execution of performLogoutActivity method started");
+        log.error("Execution of performLogoutActivity method started");
 
         if (!ClientInfoHolder.authenticateClient(packet)) return;
-        log.info("Authentication successful ");
+        log.error("Authentication successful ");
 
-        log.info("logging out client");
+        log.error("logging out client");
         ClientInfoHolder.informationOfMagicNumber.remove(packet.getMessageSourceId());
 
-        log.info("Get latest packet");
-        Packet latestPacket = Adaptor.getLoggedOutPacket(packet);
+        log.error("Get latest packet");
+        Packet latestPacket = adaptor.getLoggedOutPacket(packet);
 
-        log.info("Calling sendingMessageToClient method");
-        sendingMessageToClient(Adaptor.getBytesArrayFromPacket(latestPacket), ClientInfoHolder.getSocketChannel(latestPacket.getMessageDestinationId()));
+        log.error("Calling sendingMessageToClient method");
+        sendingMessageToClient(adaptor.getBytesArrayFromPacket(latestPacket), ClientInfoHolder.getSocketChannel(latestPacket.getMessageDestinationId()));
 
-        log.info("Execution of performLogoutActivity method ended");
+        log.error("Execution of performLogoutActivity method ended");
 
     }
 
@@ -273,23 +281,23 @@ public class Writer extends Thread {
      */
 
     public int sendingMessageToClient(byte[] packetInBytes, SocketChannel channel) throws IOException {
-        log.info("Execution of sendingMessageToClient started");
-        log.info("Creating buffer with allocation of private backend space with size {}", packetInBytes.length);
+        log.error("Execution of sendingMessageToClient started");
+        log.error("Creating buffer with allocation of private backend space with size {}", packetInBytes.length);
         ByteBuffer messageToServerBuffer = ByteBuffer.allocate(packetInBytes.length); //improvement
-        log.info("Putting data in bulk into buffer.");
+        log.error("Putting data in bulk into buffer.");
         messageToServerBuffer.put(packetInBytes);
 
-        log.info("Flipping the buffer because internally write uses buffer pos index");
+        log.error("Flipping the buffer because internally write uses buffer pos index");
         messageToServerBuffer.flip();
 
         int bytesWritten = channel.write(messageToServerBuffer);
 
-        log.info("This amount of bytes are sent to client " + bytesWritten);
-        log.info("Message sent to the client");
-        log.info("Clearing the buffer");
+        log.error("This amount of bytes are sent to client " + bytesWritten);
+        log.error("Message sent to the client");
+        log.error("Clearing the buffer");
 
         messageToServerBuffer.clear();
-        log.info("Execution of sendMessageToServer ended");
+        log.error("Execution of sendMessageToServer ended");
         return bytesWritten;
 
     }

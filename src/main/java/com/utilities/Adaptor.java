@@ -3,11 +3,13 @@ package com.utilities;
 import com.domain.MessageType;
 import com.domain.Packet;
 import com.google.common.primitives.Bytes;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Adaptor class which converts object from one form to another here
@@ -20,6 +22,8 @@ import java.util.List;
 
 @Slf4j
 public class Adaptor {
+
+    public static ReentrantLock lock = new ReentrantLock();
 
     /**
      * In this method we will make a packet with generated
@@ -34,7 +38,7 @@ public class Adaptor {
      *
      */
 
-     public static Packet makingPacketWithGeneratedId(int clientID) {
+     public Packet makingPacketWithGeneratedId(int clientID) {
         return Packet.builder().magicBytes(Constants.NO_MAGIC_BYTES_DEFINED).messageType(MessageType.GENERATED_ID).
                 messageSourceId(Constants.SERVER_SOURCE_ID).messageDestinationId(clientID).
                 messageLength(Constants.MESSAGE_FROM_SERVER.length()).
@@ -59,21 +63,27 @@ public class Adaptor {
      *
      */
 
-    public static byte[] getBytesArrayFromPacket(Packet packet) {
-        log.info("Execution of convertPacketIntoByteArray method started");
-        List<Byte> byteArrayList = new ArrayList<>();
+    public byte[] getBytesArrayFromPacket(Packet packet) {
+        Adaptor.lock.lock();
+        try{
+            log.info("Execution of convertPacketIntoByteArray method started");
+            List<Byte> byteArrayList = new ArrayList<>();
 
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMagicBytes()).array()));
-        byteArrayList.addAll(Bytes.asList(packet.getMessageType().getMessageCode().getBytes()));
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageSourceId()).array()));
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageDestinationId()).array()));
-        byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageLength()).array()));
-        byteArrayList.addAll(Bytes.asList(packet.getMessage().getBytes()));
+            byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMagicBytes()).array()));
+            byteArrayList.addAll(Bytes.asList(packet.getMessageType().getMessageCode().getBytes()));
+            byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageSourceId()).array()));
+            byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageDestinationId()).array()));
+            byteArrayList.addAll(Bytes.asList(ByteBuffer.allocate(4).putInt(packet.getMessageLength()).array()));
+            byteArrayList.addAll(Bytes.asList(packet.getMessage().getBytes()));
 
-        log.info("returning bytes array");
-        log.info("Execution of convertMessagePacketIntoTheByteArray method ended");
+            log.info("returning bytes array");
+            log.info("Execution of convertMessagePacketIntoTheByteArray method ended");
 
-        return Bytes.toArray(byteArrayList);
+            return Bytes.toArray(byteArrayList);
+        }finally {
+            Adaptor.lock.unlock();
+        }
+
     }
 
     
@@ -90,7 +100,7 @@ public class Adaptor {
      *
      */
 
-    public static Packet getLoggedInPacket(Packet packet,int magicNumber) {
+    public Packet getLoggedInPacket(Packet packet,int magicNumber) {
         return Packet.builder().magicBytes(magicNumber).messageType(MessageType.LOGIN).messageSourceId(Constants.SERVER_SOURCE_ID).
                 messageDestinationId(packet.getMessageSourceId()).messageLength(packet.getMessageLength()).
                 message(packet.getMessage()).build();
@@ -105,7 +115,7 @@ public class Adaptor {
      *
      */
 
-    public static Packet getPacketWhenNoSocketPresent(Packet packet) {
+    public Packet getPacketWhenNoSocketPresent(Packet packet) {
         return Packet.builder().magicBytes(packet.getMagicBytes()).messageSourceId(Constants.SERVER_SOURCE_ID).
                 messageDestinationId(packet.getMessageSourceId()).messageType(MessageType.DATA).
                 message(Constants.MESSAGE_WHEN_DESTINATION_ID_NOT_PRESENT).
@@ -122,7 +132,7 @@ public class Adaptor {
      *
      */
 
-    public static Packet getLoggedOutPacket(Packet packet) {
+    public Packet getLoggedOutPacket(Packet packet) {
         return Packet.builder().magicBytes(packet.getMagicBytes()).messageType(MessageType.LOGOUT).
                 messageSourceId(Constants.SERVER_SOURCE_ID).messageDestinationId(packet.getMessageSourceId()).
                 messageLength(packet.getMessage().length()).message(packet.getMessage()).build();

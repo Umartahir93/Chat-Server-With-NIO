@@ -6,6 +6,7 @@ import com.utilities.Constants;
 import com.utilities.UtilityFunction;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.function.*;
@@ -32,6 +33,7 @@ import java.util.function.*;
 
 @Getter
 @Setter
+@Slf4j
 public class Pipeline {
     private List<IntSupplier> pipelineSteps = new ArrayList<>();
     private Queue<Byte> messageByteQueue = new LinkedList<>();
@@ -74,10 +76,13 @@ public class Pipeline {
 
     public IntSupplier initiatePipeline() {
         return () -> {
+            log.info("Execution of initiatePipeline stage started");
             packetIsReady = false;
             packet = Packet.builder().build();
             currentStage = 1;
+            log.info("Execution of initiatePipeline stage ended");
             return currentStage;
+
         };
     }
 
@@ -91,9 +96,11 @@ public class Pipeline {
 
     public IntSupplier firstStage(){
         return ()-> {
+            log.info("Execution of firstStage stage started");
             int magicNumber = getIntFromBytes().getAsInt();
 
             if(magicNumber != -1 ){
+                log.info("Setting Magic Bytes");
                 packet.setMagicBytes(magicNumber);
                 currentStage++;
                 return currentStage;
@@ -119,7 +126,7 @@ public class Pipeline {
                 byte [] bytes = new byte[Constants.BYTE_ARRAY_SIZE_FOR_INT];
 
                 for(int i = 0; i < Constants.BYTE_ARRAY_SIZE_FOR_INT ; i++){
-                    bytes[i] = (byte) messageByteQueue.poll();
+                    bytes[i] = messageByteQueue.poll();
                 }
 
                 return UtilityFunction.getIntFromByteArray(bytes);
@@ -168,9 +175,17 @@ public class Pipeline {
                 byte [] bytes = new byte[Constants.BYTE_ARRAY_SIZE_FOR_MESSAGE_TYPE];
 
                 for(int i = 0; i < Constants.BYTE_ARRAY_SIZE_FOR_MESSAGE_TYPE ; i++){
-                    bytes[i] = (byte) messageByteQueue.poll();
+                    bytes[i] = messageByteQueue.poll();
+
+                    if(bytes[i] == 32){
+                        System.out.println(packet.getMagicBytes());
+                        while (!messageByteQueue.isEmpty())
+                            System.out.println(messageByteQueue.poll());
+
+                    }
                 }
 
+                System.out.println("bytes size "+bytes.length+" String "+new String(bytes));
                 return MessageType.fromTextGetMessageType(new String(bytes)).get();
             }
             return null;
